@@ -35,6 +35,8 @@
 #include <signal.h>
 #include <pthread.h>
 
+#include <sys/resource.h>
+
 #include <curl/curl.h>
 #include <json.h>
 #include <zlib.h>

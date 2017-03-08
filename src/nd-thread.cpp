@@ -28,6 +28,8 @@
 #include <signal.h>
 #include <pthread.h>
 
+#include <sys/resource.h>
+
 #include "ndpi_main.h"
 
 using namespace std;

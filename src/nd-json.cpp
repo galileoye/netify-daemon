@@ -24,11 +24,13 @@
 #include <map>
 #include <unordered_map>
 
+#include <sys/stat.h>
+#include <sys/file.h>
+#include <sys/resource.h>
+
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/stat.h>
-#include <sys/file.h>
 #include <fcntl.h>
 #include <pwd.h>
 #include <grp.h>

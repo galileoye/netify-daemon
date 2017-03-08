@@ -26,6 +26,8 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/resource.h>
+
 #include <arpa/inet.h>
 #include <errno.h>
 

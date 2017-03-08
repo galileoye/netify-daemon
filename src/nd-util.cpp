@@ -29,7 +29,9 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include <sys/resource.h>
 #include <sys/socket.h>
+
 #include <netdb.h>
 
 #include "ndpi_main.h"

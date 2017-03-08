@@ -52,6 +52,7 @@ protected:
     long cpu;
     bool terminate;
     pthread_mutex_t lock;
+    struct rusage rstats;
 
     int Join(void);
 };

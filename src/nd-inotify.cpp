@@ -22,9 +22,11 @@
 #include <stdexcept>
 #include <map>
 
-#include <unistd.h>
 #include <sys/inotify.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
+
+#include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <errno.h>
