@@ -39,6 +39,13 @@ Report bugs to: https://github.com/eglooca/netify-daemon/issues
 %prep
 %setup -q
 ./autogen.sh
+export CFLAGS="-I /usr/include/libnfnetlink-1.0.1"
+export CXXFLAGS="-I /usr/include/libnfnetlink-1.0.1"
+export LIBS="/usr/local/lib/libnfnetlink.a"
+export LIBMNL_CFLAGS="-I /usr/local/include"
+export LIBMNL_LIBS="/usr/local/lib/libmnl.a"
+export LIBNETFILTER_CONNTRACK_CFLAGS="-I /usr/local/include"
+export LIBNETFILTER_CONNTRACK_LIBS="/usr/local/lib/libnetfilter_conntrack.a"
 %{configure}
 
 # Build
