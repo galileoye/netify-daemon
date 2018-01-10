@@ -7,7 +7,7 @@ AC_INIT([Netify Agent], [2.4],
     [netifyd], [http://www.egloo.ca/])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([src/netifyd.cpp])
-AC_CONFIG_SUBDIRS([inih ndpi])
+AC_CONFIG_SUBDIRS([inih ndpi curl])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 AC_USE_SYSTEM_EXTENSIONS
@@ -38,7 +38,7 @@ AC_CHECK_LIB([resolv],
 #AC_CHECK_LIB([libmbedtls.so.9], [ssl_init])
 
 PKG_CHECK_MODULES([JSONC], [json-c])
-PKG_CHECK_MODULES([LIBCURL], [libcurl])
+#PKG_CHECK_MODULES([LIBCURL], [libcurl])
 PKG_CHECK_MODULES([ZLIB], [zlib])
 
 # Parameters: --with/without

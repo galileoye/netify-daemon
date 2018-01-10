@@ -1599,12 +1599,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    CURLcode cc;
-    if ((cc = curl_global_init(CURL_GLOBAL_ALL)) != 0) {
-        cerr << "Unable to initialize libCURL: " << cc << endl;
-        return 1;
-    }
-
     if (! ND_DEBUG) {
         if (daemon(1, 0) != 0) {
             nd_printf("daemon: %s\n", strerror(errno));
@@ -1632,7 +1626,36 @@ int main(int argc, char *argv[])
         nd_create_windows();
     }
 #endif
-    nd_printf("%s v%s\n", PACKAGE_NAME, PACKAGE_VERSION);
+    nd_printf("%s v%s\nnDPI/%s libcurl/%s\n",
+        PACKAGE_NAME, PACKAGE_VERSION, ndpi_revision(), curl_version());
+
+#if (LIBCURL_VERSION_NUM >= 0x073800)
+    const curl_ssl_backend **curl_ssl_backends;
+    CURLsslset css = curl_global_sslset((curl_sslbackend)-1,
+        NULL, &curl_ssl_backends);
+
+    if (css == CURLSSLSET_NO_BACKENDS) {
+        nd_printf("No SSL backends available, can not proceed.\n");
+        return 1;
+    }
+    else if (css == CURLSSLSET_TOO_LATE) {
+        nd_printf("Too late to set SSL backend.\n");
+        return 1;
+    }
+
+    nd_debug_printf("libcurl SSL backends (%d):\n", css);
+    for (int i = 0; curl_ssl_backends[i] != NULL; i++) {
+        nd_debug_printf("[%02x] %s\n",
+            curl_ssl_backends[i]->id, curl_ssl_backends[i]->name);
+    }
+#endif
+    return 0;
+
+    CURLcode cc;
+    if ((cc = curl_global_init(CURL_GLOBAL_ALL)) != 0) {
+        cerr << "Unable to initialize libCURL: " << cc << endl;
+        return 1;
+    }
 
     memset(&totals, 0, sizeof(nd_packet_stats));
 
