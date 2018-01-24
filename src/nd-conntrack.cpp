@@ -39,7 +39,7 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <linux/if_ether.h>
-#ifdef _ND_USE_NETLINK
+#if defined (_ND_USE_NETLINK) && defined(HAVE_LINUX_NETLINK_H)
 #include <linux/netlink.h>
 #endif
 #include <json.h>

@@ -34,8 +34,13 @@
 #include <netdb.h>
 #include <pthread.h>
 
+#if defined(HAVE_LINUX_NETLINK_H)
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+#endif
+#if defined (_ND_USE_NETLINK_BSD)
+#include <net/if_dl.h>
+#endif
 
 using namespace std;
 
@@ -117,7 +122,7 @@ ndNetlink::ndNetlink(const nd_ifaces &ifaces)
     int rc;
 
     memset(buffer, 0, ND_NETLINK_BUFSIZ);
-
+#ifndef _ND_USE_NETLINK_BSD
     memset(&sa, 0, sizeof(struct sockaddr_nl));
     sa.nl_family = AF_NETLINK;
     sa.nl_pid = getpid();
@@ -138,19 +143,29 @@ ndNetlink::ndNetlink(const nd_ifaces &ifaces)
         nd_printf("Error binding netlink socket: %s\n", strerror(rc));
         throw ndNetlinkException(strerror(rc));
     }
+#else
+    memset(&sa, 0, sizeof(struct sockaddr_dl));
 
+    nd = socket(AF_ROUTE, SOCK_RAW, 0);
+    if (nd < 0) {
+        rc = errno;
+        nd_printf("Error creating netlink socket: %s\n", strerror(rc));
+        throw ndNetlinkException(strerror(rc));
+    }
+
+#endif
     if (fcntl(nd, F_SETOWN, getpid()) < 0) {
         rc = errno;
         nd_printf("Error setting netlink socket owner: %s\n", strerror(rc));
         throw ndNetlinkException(strerror(errno));
     }
-
+#ifdef F_SETSIG
     if (fcntl(nd, F_SETSIG, SIGIO) < 0) {
         rc = errno;
         nd_printf("Error setting netlink I/O signal: %s\n", strerror(rc));
         throw ndNetlinkException(strerror(errno));
     }
-
+#endif
     int flags = fcntl(nd, F_GETFL);
     if (fcntl(nd, F_SETFL, flags | O_ASYNC | O_NONBLOCK) < 0) {
         rc = errno;
@@ -218,6 +233,8 @@ void ndNetlink::PrintType(const string &prefix, const ndNetlinkAddressType &type
         break;
     }
 }
+
+#ifndef _ND_USE_NETLINK_BSD
 
 void ndNetlink::Refresh(void)
 {
@@ -328,6 +345,20 @@ bool ndNetlink::ProcessEvent(void)
 
     return (added_net || removed_net || added_addr || removed_addr) ? true : false;
 }
+
+#else // ! _ND_USE_NETLINK_BSD
+
+void ndNetlink::Refresh(void)
+{
+    nd_debug_printf("netlink (BSD): %s\n", __PRETTY_FUNCTION__);
+}
+
+bool ndNetlink::ProcessEvent(void)
+{
+    nd_debug_printf("netlink (BSD): %s\n", __PRETTY_FUNCTION__);
+}
+
+#endif
 
 ndNetlinkAddressType ndNetlink::ClassifyAddress(
     const struct sockaddr_storage *addr)
@@ -598,6 +629,8 @@ bool ndNetlink::AddInterface(const string &iface)
     return true;
 }
 
+#ifndef _ND_USE_NETLINK_BSD
+
 bool ndNetlink::ParseMessage(struct rtmsg *rtm, size_t offset,
     string &iface, ndNetlinkNetworkAddr &addr)
 {
@@ -845,6 +878,8 @@ bool ndNetlink::AddNetwork(struct nlmsghdr *nlh)
     return true;
 }
 
+#endif // ! _ND_USE_NETLINK_BSD
+
 bool ndNetlink::AddNetwork(sa_family_t family,
     const string &type, const string &saddr, uint8_t length)
 {
@@ -877,6 +912,8 @@ bool ndNetlink::AddNetwork(sa_family_t family,
 
     return true;
 }
+
+#ifndef _ND_USE_NETLINK_BSD
 
 bool ndNetlink::RemoveNetwork(struct nlmsghdr *nlh)
 {
@@ -955,6 +992,8 @@ bool ndNetlink::AddAddress(struct nlmsghdr *nlh)
     return true;
 }
 
+#endif // ! _ND_USE_NETLINK_BSD
+
 bool ndNetlink::AddAddress(
     sa_family_t family, const string &type, const string &saddr)
 {
@@ -1002,6 +1041,8 @@ bool ndNetlink::AddAddress(const string &type, const struct sockaddr_storage &ad
     return true;
 }
 
+#ifndef _ND_USE_NETLINK_BSD
+
 bool ndNetlink::RemoveAddress(struct nlmsghdr *nlh)
 {
     string iface;
@@ -1037,6 +1078,8 @@ bool ndNetlink::RemoveAddress(struct nlmsghdr *nlh)
 
     return removed;
 }
+
+#endif // ! _ND_USE_NETLINK_BSD
 
 void ndNetlink::Dump(void)
 {

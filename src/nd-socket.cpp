@@ -53,16 +53,14 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/un.h>
-#ifdef _ND_USE_NETLINK
-#include <linux/netlink.h>
-#endif
-
-#ifndef UNIX_PATH_MAX
-#define UNIX_PATH_MAX 108
-#endif
 
 #include <pcap/pcap.h>
+
 #include <json.h>
+
+#if defined (_ND_USE_NETLINK) && defined(HAVE_LINUX_NETLINK_H)
+#include <linux/netlink.h>
+#endif
 
 #ifdef _ND_USE_CONNTRACK
 #include <libnetfilter_conntrack/libnetfilter_conntrack.h>
@@ -71,6 +69,10 @@
 #include "ndpi_main.h"
 
 using namespace std;
+
+#ifndef UNIX_PATH_MAX
+#define UNIX_PATH_MAX 108
+#endif
 
 #include "netifyd.h"
 #include "nd-util.h"

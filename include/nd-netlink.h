@@ -112,7 +112,7 @@ protected:
 
     bool CopyNetlinkAddress(
         sa_family_t family, struct sockaddr_storage &dst, void *src);
-
+#ifndef _ND_USE_NETLINK_BSD
     bool ParseMessage(struct rtmsg *rtm, size_t offset,
         string &iface, ndNetlinkNetworkAddr &addr);
     bool ParseMessage(struct ifaddrmsg *addrm, size_t offset,
@@ -122,14 +122,20 @@ protected:
     bool RemoveNetwork(struct nlmsghdr *nlh);
 
     bool AddAddress(struct nlmsghdr *nlh);
-    bool AddAddress(const string &type, const struct sockaddr_storage &addr);
     bool RemoveAddress(struct nlmsghdr *nlh);
+#else
+#endif
+    bool AddAddress(const string &type, const struct sockaddr_storage &addr);
 
     void PrintAddress(const struct sockaddr_storage *addr);
 
     int nd;
     unsigned seq;
+#ifndef _ND_USE_NETLINK_BSD
     struct sockaddr_nl sa;
+#else
+    struct sockaddr_dl sa;
+#endif
     uint8_t buffer[ND_NETLINK_BUFSIZ];
 
     ndNetlinkInterfaces ifaces;
