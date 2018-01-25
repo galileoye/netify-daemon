@@ -359,15 +359,15 @@ bool ndNetlink::ProcessEvent(void)
 
 void ndNetlink::Refresh(void)
 {
-	size_t length = buffer_length;
-	int mib[_ND_NETLINK_SYSCTL_MIBS] = {
+    size_t length = buffer_length;
+    int mib[_ND_NETLINK_SYSCTL_MIBS] = {
         CTL_NET, AF_ROUTE, 0, AF_UNSPEC, NET_RT_DUMP, 0
     };
 
-	if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, NULL, &length, NULL, 0) < 0) {
+    if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, NULL, &length, NULL, 0) < 0) {
         nd_printf("sysctl(NET_RT_DUMP): %s, %lu\n", strerror(errno), length);
-		return;
-	}
+        return;
+    }
 
     while (length > buffer_length) {
         buffer_length += _ND_NETLINK_BUFSIZ;
@@ -375,19 +375,19 @@ void ndNetlink::Refresh(void)
         if (buffer == NULL) throw ndNetlinkException(strerror(ENOMEM));
     }
 
-	if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, buffer, &length, NULL, 0) < 0) {
+    if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, buffer, &length, NULL, 0) < 0) {
         nd_printf("sysctl(NET_RT_DUMP): %s, %lu\n", strerror(errno), length);
-		return;
-	}
+        return;
+    }
 
     nd_debug_printf("sysctl(NET_RT_DUMP): returned %d bytes.\n", length);
 
     mib[4] = NET_RT_IFLIST;
 
-	if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, NULL, &length, NULL, 0) < 0) {
+    if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, NULL, &length, NULL, 0) < 0) {
         nd_printf("sysctl(NET_RT_IFLIST): %s, %lu\n", strerror(errno), length);
-		return;
-	}
+        return;
+    }
 
     while (length > buffer_length) {
         buffer_length += _ND_NETLINK_BUFSIZ;
@@ -395,10 +395,10 @@ void ndNetlink::Refresh(void)
         if (buffer == NULL) throw ndNetlinkException(strerror(ENOMEM));
     }
 
-	if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, buffer, &length, NULL, 0) < 0) {
+    if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, buffer, &length, NULL, 0) < 0) {
         nd_printf("sysctl(NET_RT_IFLIST): %s, %lu\n", strerror(errno), length);
-		return;
-	}
+        return;
+    }
 
     nd_debug_printf("sysctl(NET_RT_IFLIST): returned %d bytes.\n", length);
 }
