@@ -146,13 +146,12 @@ ndNetlink::ndNetlink(const nd_ifaces &ifaces)
 #else
     memset(&sa, 0, sizeof(struct sockaddr_dl));
 
-    nd = socket(AF_ROUTE, SOCK_RAW, 0);
+    nd = socket(AF_ROUTE, SOCK_RAW, AF_UNSPEC);
     if (nd < 0) {
         rc = errno;
         nd_printf("Error creating netlink socket: %s\n", strerror(rc));
         throw ndNetlinkException(strerror(rc));
     }
-
 #endif
     if (fcntl(nd, F_SETOWN, getpid()) < 0) {
         rc = errno;
@@ -351,6 +350,7 @@ bool ndNetlink::ProcessEvent(void)
 void ndNetlink::Refresh(void)
 {
     nd_debug_printf("netlink (BSD): %s\n", __PRETTY_FUNCTION__);
+    Dump();
 }
 
 bool ndNetlink::ProcessEvent(void)

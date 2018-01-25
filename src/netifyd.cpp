@@ -1392,6 +1392,8 @@ static void nd_create_windows(void)
     curs_set(0);
 }
 #endif
+void nd_sigio_handler(int sig) { }
+
 int main(int argc, char *argv[])
 {
     int rc = 0;
@@ -1663,6 +1665,8 @@ int main(int argc, char *argv[])
     if (ND_USE_NCURSES)
         sigaddset(&sigset, SIGWINCH);
 #endif
+    signal(SIGIO, nd_sigio_handler);
+
     nd_load_ethers();
 
     try {
