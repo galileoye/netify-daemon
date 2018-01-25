@@ -293,7 +293,7 @@ bool ndNetlink::ProcessEvent(void)
     unsigned added_net = 0, removed_net = 0, added_addr = 0, removed_addr = 0;
 
     while ((bytes = recv(nd, buffer, buffer_length, 0)) > 0) {
-//        nd_debug_printf("Read %ld netlink bytes.\n", bytes);
+        //nd_debug_printf("Read %ld netlink bytes.\n", bytes);
         for (nlh = (struct nlmsghdr *)buffer;
             NLMSG_OK(nlh, bytes); nlh = NLMSG_NEXT(nlh, bytes)) {
 #if 0
@@ -305,22 +305,22 @@ bool ndNetlink::ProcessEvent(void)
 #endif
             switch(nlh->nlmsg_type) {
             case NLMSG_DONE:
-//              nd_debug_printf("End of multi-part message.\n");
+                //nd_debug_printf("End of multi-part message.\n");
                 break;
             case RTM_NEWROUTE:
-//              nd_debug_printf("New route.\n");
+                //nd_debug_printf("New route.\n");
                 if (AddNetwork(nlh)) added_net++;
                 break;
             case RTM_DELROUTE:
-//              nd_debug_printf("Removed route.\n");
+                //nd_debug_printf("Removed route.\n");
                 if (RemoveNetwork(nlh)) removed_net++;
                 break;
             case RTM_NEWADDR:
-//              nd_debug_printf("New interface address.\n");
+                //nd_debug_printf("New interface address.\n");
                 if (AddAddress(nlh)) added_addr++;
                 break;
             case RTM_DELADDR:
-//              nd_debug_printf("Removed interface address.\n");
+                //nd_debug_printf("Removed interface address.\n");
                 if (RemoveAddress(nlh)) removed_addr++;
                 break;
             case NLMSG_ERROR:
@@ -682,7 +682,7 @@ bool ndNetlink::InNetwork(sa_family_t family, uint8_t length,
         }
     }
 
-//    nd_debug_printf("%s: true\n\n", __PRETTY_FUNCTION__);
+    //nd_debug_printf("%s: true\n\n", __PRETTY_FUNCTION__);
 
     return true;
 }
@@ -727,7 +727,7 @@ bool ndNetlink::ParseMessage(struct rtmsg *rtm, size_t offset,
     string &iface, ndNetlinkNetworkAddr &addr)
 {
     char ifname[IFNAMSIZ];
-//    char saddr[NI_MAXHOST];
+    //char saddr[NI_MAXHOST];
     bool daddr_set = false;
 
     iface.clear();
@@ -737,7 +737,7 @@ bool ndNetlink::ParseMessage(struct rtmsg *rtm, size_t offset,
     addr.network.ss_family = AF_UNSPEC;
 
     if (rtm->rtm_type != RTN_UNICAST) {
-//        nd_debug_printf("Ignorning non-unicast route.\n");
+        //nd_debug_printf("Ignorning non-unicast route.\n");
         return false;
     }
 
@@ -873,8 +873,8 @@ bool ndNetlink::ParseMessage(struct rtmsg *rtm, size_t offset,
     }
 
     if (daddr_set != true || iface.size() == 0) {
-//        nd_printf("Route message: %saddress set, %siface name set\n",
-//            (daddr_set != true) ? "No " : "", (iface.size() == 0) ? "No" : "");
+        //nd_printf("Route message: %saddress set, %siface name set\n",
+        //  (daddr_set != true) ? "No " : "", (iface.size() == 0) ? "No" : "");
         return false;
     }
 
@@ -899,44 +899,23 @@ bool ndNetlink::ParseMessage(struct ifaddrmsg *addrm, size_t offset,
     for (struct rtattr *rta = static_cast<struct rtattr *>(IFA_RTA(addrm));
         RTA_OK(rta, offset); rta = RTA_NEXT(rta, offset)) {
         switch (rta->rta_type) {
-//        case IFA_UNSPEC:
-//            nd_printf("%s: IFA_UNSPEC set\n", ifname);
-//            break;
         case IFA_ADDRESS:
-//            nd_printf("%s: IFA_ADDRESS set\n", ifname);
+            //nd_printf("%s: IFA_ADDRESS set\n", ifname);
             addr_set = CopyNetlinkAddress(addrm->ifa_family, addr, RTA_DATA(rta));
             break;
         case IFA_LOCAL:
-//            nd_printf("%s: IFA_LOCAL set\n", ifname);
+            //nd_printf("%s: IFA_LOCAL set\n", ifname);
             addr_set = CopyNetlinkAddress(addrm->ifa_family, addr, RTA_DATA(rta));
             break;
-//        case IFA_LABEL:
-//            nd_printf("%s: IFA_LABEL set\n", ifname);
-//            break;
         case IFA_BROADCAST:
-//            nd_printf("%s: IFA_BROADCAST set\n", ifname);
+            //nd_printf("%s: IFA_BROADCAST set\n", ifname);
             if (CopyNetlinkAddress(addrm->ifa_family, addr_bcast, RTA_DATA(rta)))
                 AddAddress(_ND_NETLINK_BROADCAST, addr_bcast);
             break;
-//        case IFA_ANYCAST:
-//            nd_printf("%s: IFA_ANYCAST set\n", ifname);
-//            break;
-//        case IFA_CACHEINFO:
-//            nd_printf("%s: IFA_CACHEINFO set\n", ifname);
-//            break;
-//        case IFA_MULTICAST:
-//            nd_printf("%s: IFA_MULTICAST set\n", ifname);
-//            break;
-//        case IFA_FLAGS:
-//            nd_printf("%s: IFA_FLAGS set\n", ifname);
-//            break;
-//        default:
-//            nd_printf("%s: WARNING: rta_type not handled: %2x\n", ifname, rta->rta_type);
-//            break;
         }
     }
 
-//    nd_debug_printf("%s: %sddress set\n", ifname, (addr_set) ? "A" : "No a");
+    //nd_debug_printf("%s: %sddress set\n", ifname, (addr_set) ? "A" : "No a");
     return addr_set;
 }
 
@@ -1064,7 +1043,7 @@ bool ndNetlink::RemoveNetwork(struct nlmsghdr *nlh)
     if (ParseMessage(
         static_cast<struct rtmsg *>(NLMSG_DATA(nlh)),
         RTM_PAYLOAD(nlh), iface, addr) == false) {
-//        nd_debug_printf("Remove network parse error\n");
+        //nd_debug_printf("Remove network parse error\n");
         return false;
     }
 
@@ -1090,13 +1069,6 @@ bool ndNetlink::RemoveNetwork(struct nlmsghdr *nlh)
     }
 
     pthread_mutex_unlock(lock->second);
-
-//    if (nd_debug) {
-//        nd_debug_printf("WARNING: Couldn't find network address in map: %s, ",
-//            iface.c_str());
-//        nd_print_address(&addr.network);
-//        nd_debug_printf("/%hhu\n", addr.length);
-//    }
 
     return removed;
 }
