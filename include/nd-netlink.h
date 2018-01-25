@@ -97,12 +97,12 @@ public:
 
     void Dump(void);
 
-    bool AddNetwork(sa_family_t family,
-        const string &type, const string &saddr, uint8_t length);
-
     bool AddInterface(const string &iface);
 
     bool AddAddress(sa_family_t family, const string &type, const string &saddr);
+    bool AddNetwork(sa_family_t family,
+        const string &type, const string &saddr, uint8_t length);
+
 
 protected:
     bool InNetwork(
@@ -112,18 +112,27 @@ protected:
 
     bool CopyNetlinkAddress(
         sa_family_t family, struct sockaddr_storage &dst, void *src);
+
 #ifndef _ND_USE_NETLINK_BSD
     bool ParseMessage(struct rtmsg *rtm, size_t offset,
         string &iface, ndNetlinkNetworkAddr &addr);
     bool ParseMessage(struct ifaddrmsg *addrm, size_t offset,
         string &iface, struct sockaddr_storage &addr);
+#else
+#endif
 
+#ifndef _ND_USE_NETLINK_BSD
     bool AddNetwork(struct nlmsghdr *nlh);
     bool RemoveNetwork(struct nlmsghdr *nlh);
 
     bool AddAddress(struct nlmsghdr *nlh);
     bool RemoveAddress(struct nlmsghdr *nlh);
 #else
+    bool AddNetwork(struct rt_msghdr *rth);
+    bool RemoveNetwork(struct rt_msghdr *rth);
+
+    bool AddAddress(struct ifa_msghdr *ifah);
+    bool RemoveAddress(struct ifa_msghdr *ifah);
 #endif
     bool AddAddress(const string &type, const struct sockaddr_storage &addr);
 

@@ -40,6 +40,7 @@
 #endif
 #if defined (_ND_USE_NETLINK_BSD)
 #include <net/if_dl.h>
+#include <net/route.h>
 #endif
 
 using namespace std;
@@ -350,12 +351,53 @@ bool ndNetlink::ProcessEvent(void)
 void ndNetlink::Refresh(void)
 {
     nd_debug_printf("netlink (BSD): %s\n", __PRETTY_FUNCTION__);
-    Dump();
 }
 
 bool ndNetlink::ProcessEvent(void)
 {
-    nd_debug_printf("netlink (BSD): %s\n", __PRETTY_FUNCTION__);
+    ssize_t bytes;
+    uint16_t length;
+    struct rt_msghdr *rth = (struct rt_msghdr *)buffer;
+    unsigned added_net = 0, removed_net = 0, added_addr = 0, removed_addr = 0;
+
+    while ((bytes = recv(nd, buffer, ND_NETLINK_BUFSIZ, 0)) > 0) {
+        nd_debug_printf("%s: %ld [%hu:0x%02hhx:0x%02hhx]\n",
+            __PRETTY_FUNCTION__, bytes,
+            rth->rtm_msglen, rth->rtm_version, rth->rtm_type);
+
+        switch (rth->rtm_type) {
+        case RTM_ADD:
+            nd_debug_printf("New route.\n");
+            if (AddNetwork(rth)) added_net++;
+            break;
+        case RTM_DELETE:
+            nd_debug_printf("Removed route.\n");
+            if (RemoveNetwork(rth)) removed_net++;
+            break;
+        case RTM_NEWADDR:
+            nd_debug_printf("Added interface address.\n");
+            if (AddAddress((struct ifa_msghdr *)buffer)) added_addr++;
+        case RTM_DELADDR:
+            nd_debug_printf("Removed interface address.\n");
+            if (RemoveAddress((struct ifa_msghdr *)buffer)) removed_addr++;
+            break;
+        default:
+            nd_debug_printf("Ignored netlink message: %02hhx\n", rth->rtm_type);
+        }
+    }
+
+    if (ND_DEBUG) {
+        if (added_net || removed_net) {
+            nd_debug_printf("Networks added: %d, removed: %d\n", added_net, removed_net);
+        }
+        if (added_addr || removed_addr) {
+            nd_debug_printf("Addresses added: %d, removed: %d\n", added_addr, removed_addr);
+        }
+
+        if (added_net || removed_net || added_addr || removed_addr) Dump();
+    }
+
+    return (added_net || removed_net || added_addr || removed_addr) ? true : false;
 }
 
 #endif
@@ -848,36 +890,6 @@ bool ndNetlink::ParseMessage(struct ifaddrmsg *addrm, size_t offset,
     return addr_set;
 }
 
-bool ndNetlink::AddNetwork(struct nlmsghdr *nlh)
-{
-    string iface;
-    ndNetlinkNetworkAddr addr;
-
-    if (ParseMessage(
-        static_cast<struct rtmsg *>(NLMSG_DATA(nlh)),
-        RTM_PAYLOAD(nlh), iface, addr) == false) return false;
-
-    ndNetlinkNetworks::const_iterator i = networks.find(iface);
-    if (i != networks.end()) {
-        for (vector<ndNetlinkNetworkAddr *>::const_iterator j = i->second.begin();
-            j != i->second.end(); j++) {
-            if (*(*j) == addr) return false;
-        }
-    }
-
-    ndNetlinkInterfaces::const_iterator lock = ifaces.find(iface);
-    if (lock == ifaces.end()) return false;
-
-    ndNetlinkNetworkAddr *entry;
-    ND_NETLINK_NETALLOC(entry, addr);
-
-    pthread_mutex_lock(lock->second);
-    networks[iface].push_back(entry);
-    pthread_mutex_unlock(lock->second);
-
-    return true;
-}
-
 #endif // ! _ND_USE_NETLINK_BSD
 
 bool ndNetlink::AddNetwork(sa_family_t family,
@@ -913,7 +925,85 @@ bool ndNetlink::AddNetwork(sa_family_t family,
     return true;
 }
 
+bool ndNetlink::AddAddress(
+    sa_family_t family, const string &type, const string &saddr)
+{
+    struct sockaddr_storage *entry, addr;
+    struct sockaddr_in *saddr_ip4;
+    struct sockaddr_in6 *saddr_ip6;
+
+    memset(&addr, 0, sizeof(struct sockaddr_storage));
+
+    addr.ss_family = family;
+    saddr_ip4 = reinterpret_cast<struct sockaddr_in *>(&addr);;
+    saddr_ip6 = reinterpret_cast<struct sockaddr_in6 *>(&addr);;
+
+    switch (family) {
+    case AF_INET:
+        if (inet_pton(AF_INET, saddr.c_str(), &saddr_ip4->sin_addr) < 0)
+            return false;
+        break;
+    case AF_INET6:
+        if (inet_pton(AF_INET6, saddr.c_str(), &saddr_ip6->sin6_addr) < 0)
+            return false;
+        break;
+    default:
+        return false;
+    }
+
+    ND_NETLINK_ADDRALLOC(entry, addr);
+    addresses[type].push_back(entry);
+
+    return true;
+}
+
+bool ndNetlink::AddAddress(const string &type,
+    const struct sockaddr_storage &addr)
+{
+    struct sockaddr_storage *entry;
+
+    ndNetlinkInterfaces::const_iterator lock = ifaces.find(type);
+    if (lock == ifaces.end()) return false;
+
+    pthread_mutex_lock(lock->second);
+    ND_NETLINK_ADDRALLOC(entry, addr);
+    addresses[type].push_back(entry);
+    pthread_mutex_unlock(lock->second);
+
+    return true;
+}
+
 #ifndef _ND_USE_NETLINK_BSD
+
+bool ndNetlink::AddNetwork(struct nlmsghdr *nlh)
+{
+    string iface;
+    ndNetlinkNetworkAddr addr;
+
+    if (ParseMessage(
+        static_cast<struct rtmsg *>(NLMSG_DATA(nlh)),
+        RTM_PAYLOAD(nlh), iface, addr) == false) return false;
+
+    ndNetlinkNetworks::const_iterator i = networks.find(iface);
+    if (i != networks.end()) {
+        for (vector<ndNetlinkNetworkAddr *>::const_iterator j = i->second.begin();
+            j != i->second.end(); j++) {
+            if (*(*j) == addr) return false;
+        }
+    }
+
+    ndNetlinkInterfaces::const_iterator lock = ifaces.find(iface);
+    if (lock == ifaces.end()) return false;
+
+    ndNetlinkNetworkAddr *entry;
+    ND_NETLINK_NETALLOC(entry, addr);
+
+    pthread_mutex_lock(lock->second);
+    networks[iface].push_back(entry);
+    pthread_mutex_unlock(lock->second);
+
+    return true;
+}
 
 bool ndNetlink::RemoveNetwork(struct nlmsghdr *nlh)
 {
@@ -992,57 +1082,6 @@ bool ndNetlink::AddAddress(struct nlmsghdr *nlh)
     return true;
 }
 
-#endif // ! _ND_USE_NETLINK_BSD
-
-bool ndNetlink::AddAddress(
-    sa_family_t family, const string &type, const string &saddr)
-{
-    struct sockaddr_storage *entry, addr;
-    struct sockaddr_in *saddr_ip4;
-    struct sockaddr_in6 *saddr_ip6;
-
-    memset(&addr, 0, sizeof(struct sockaddr_storage));
-
-    addr.ss_family = family;
-    saddr_ip4 = reinterpret_cast<struct sockaddr_in *>(&addr);;
-    saddr_ip6 = reinterpret_cast<struct sockaddr_in6 *>(&addr);;
-
-    switch (family) {
-    case AF_INET:
-        if (inet_pton(AF_INET, saddr.c_str(), &saddr_ip4->sin_addr) < 0)
-            return false;
-        break;
-    case AF_INET6:
-        if (inet_pton(AF_INET6, saddr.c_str(), &saddr_ip6->sin6_addr) < 0)
-            return false;
-        break;
-    default:
-        return false;
-    }
-
-    ND_NETLINK_ADDRALLOC(entry, addr);
-    addresses[type].push_back(entry);
-
-    return true;
-}
-
-bool ndNetlink::AddAddress(const string &type, const struct sockaddr_storage &addr)
-{
-    struct sockaddr_storage *entry;
-
-    ndNetlinkInterfaces::const_iterator lock = ifaces.find(type);
-    if (lock == ifaces.end()) return false;
-
-    pthread_mutex_lock(lock->second);
-    ND_NETLINK_ADDRALLOC(entry, addr);
-    addresses[type].push_back(entry);
-    pthread_mutex_unlock(lock->second);
-
-    return true;
-}
-
-#ifndef _ND_USE_NETLINK_BSD
-
 bool ndNetlink::RemoveAddress(struct nlmsghdr *nlh)
 {
     string iface;
@@ -1077,6 +1116,28 @@ bool ndNetlink::RemoveAddress(struct nlmsghdr *nlh)
     pthread_mutex_unlock(lock->second);
 
     return removed;
+}
+
+#else
+
+bool ndNetlink::AddNetwork(struct rt_msghdr *rth)
+{
+    return false;
+}
+
+bool ndNetlink::RemoveNetwork(struct rt_msghdr *rth)
+{
+    return false;
+}
+
+bool ndNetlink::AddAddress(struct ifa_msghdr *ifah)
+{
+    return false;
+}
+
+bool ndNetlink::RemoveAddress(struct ifa_msghdr *ifah)
+{
+    return false;
 }
 
 #endif // ! _ND_USE_NETLINK_BSD
