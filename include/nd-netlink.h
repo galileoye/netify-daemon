@@ -17,7 +17,7 @@
 #ifndef _ND_NETLINK_H
 #define _ND_NETLINK_H
 
-#define ND_NETLINK_BUFSIZ       4096
+#define _ND_NETLINK_BUFSIZ      4096
 
 #define _ND_NETLINK_PRIVATE     "__nd_private__"
 #define _ND_NETLINK_MULTICAST   "__nd_multicast__"
@@ -145,7 +145,8 @@ protected:
 #else
     struct sockaddr_dl sa;
 #endif
-    uint8_t buffer[ND_NETLINK_BUFSIZ];
+    size_t buffer_length;
+    uint8_t *buffer;
 
     ndNetlinkInterfaces ifaces;
     ndNetlinkNetworks networks;

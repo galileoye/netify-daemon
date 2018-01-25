@@ -24,6 +24,7 @@
 #include <stdexcept>
 
 #include <unistd.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -39,6 +40,7 @@
 #include <linux/rtnetlink.h>
 #endif
 #if defined (_ND_USE_NETLINK_BSD)
+#include <sys/sysctl.h>
 #include <net/if_dl.h>
 #include <net/route.h>
 #endif
@@ -118,11 +120,14 @@ inline bool ndNetlinkNetworkAddr::operator!=(const ndNetlinkNetworkAddr &n) cons
 }
 
 ndNetlink::ndNetlink(const nd_ifaces &ifaces)
-    : nd(-1), seq(0)
+    : nd(-1), seq(0), buffer(NULL), buffer_length(_ND_NETLINK_BUFSIZ)
 {
     int rc;
 
-    memset(buffer, 0, ND_NETLINK_BUFSIZ);
+    buffer = (uint8_t *)realloc(NULL, buffer_length);
+    if (buffer == NULL) throw ndNetlinkException(strerror(ENOMEM));
+    memset(buffer, 0, buffer_length);
+
 #ifndef _ND_USE_NETLINK_BSD
     memset(&sa, 0, sizeof(struct sockaddr_nl));
     sa.nl_family = AF_NETLINK;
@@ -202,6 +207,8 @@ ndNetlink::~ndNetlink()
             delete i->second;
         }
     }
+
+    free(buffer);
 }
 
 void ndNetlink::PrintType(const string &prefix, const ndNetlinkAddressType &type)
@@ -241,7 +248,7 @@ void ndNetlink::Refresh(void)
     int rc;
     struct nlmsghdr *nlh;
 
-    memset(buffer, 0, ND_NETLINK_BUFSIZ);
+    memset(buffer, 0, buffer_length);
 
     nlh = (struct nlmsghdr *)buffer;
 
@@ -259,7 +266,7 @@ void ndNetlink::Refresh(void)
 
     ProcessEvent();
 
-    memset(buffer, 0, ND_NETLINK_BUFSIZ);
+    memset(buffer, 0, buffer_length);
 
     nlh = (struct nlmsghdr *)buffer;
 
@@ -285,7 +292,7 @@ bool ndNetlink::ProcessEvent(void)
     struct nlmsgerr *nlerror;
     unsigned added_net = 0, removed_net = 0, added_addr = 0, removed_addr = 0;
 
-    while ((bytes = recv(nd, buffer, ND_NETLINK_BUFSIZ, 0)) > 0) {
+    while ((bytes = recv(nd, buffer, buffer_length, 0)) > 0) {
 //        nd_debug_printf("Read %ld netlink bytes.\n", bytes);
         for (nlh = (struct nlmsghdr *)buffer;
             NLMSG_OK(nlh, bytes); nlh = NLMSG_NEXT(nlh, bytes)) {
@@ -348,9 +355,52 @@ bool ndNetlink::ProcessEvent(void)
 
 #else // ! _ND_USE_NETLINK_BSD
 
+#define _ND_NETLINK_SYSCTL_MIBS 6
+
 void ndNetlink::Refresh(void)
 {
-    nd_debug_printf("netlink (BSD): %s\n", __PRETTY_FUNCTION__);
+	size_t length = buffer_length;
+	int mib[_ND_NETLINK_SYSCTL_MIBS] = {
+        CTL_NET, AF_ROUTE, 0, AF_UNSPEC, NET_RT_DUMP, 0
+    };
+
+	if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, NULL, &length, NULL, 0) < 0) {
+        nd_printf("sysctl(NET_RT_DUMP): %s, %lu\n", strerror(errno), length);
+		return;
+	}
+
+    while (length > buffer_length) {
+        buffer_length += _ND_NETLINK_BUFSIZ;
+        buffer = (uint8_t *)realloc((void *)buffer, buffer_length);
+        if (buffer == NULL) throw ndNetlinkException(strerror(ENOMEM));
+    }
+
+	if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, buffer, &length, NULL, 0) < 0) {
+        nd_printf("sysctl(NET_RT_DUMP): %s, %lu\n", strerror(errno), length);
+		return;
+	}
+
+    nd_debug_printf("sysctl(NET_RT_DUMP): returned %d bytes.\n", length);
+
+    mib[4] = NET_RT_IFLIST;
+
+	if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, NULL, &length, NULL, 0) < 0) {
+        nd_printf("sysctl(NET_RT_IFLIST): %s, %lu\n", strerror(errno), length);
+		return;
+	}
+
+    while (length > buffer_length) {
+        buffer_length += _ND_NETLINK_BUFSIZ;
+        buffer = (uint8_t *)realloc((void *)buffer, buffer_length);
+        if (buffer == NULL) throw ndNetlinkException(strerror(ENOMEM));
+    }
+
+	if (sysctl(mib, _ND_NETLINK_SYSCTL_MIBS, buffer, &length, NULL, 0) < 0) {
+        nd_printf("sysctl(NET_RT_IFLIST): %s, %lu\n", strerror(errno), length);
+		return;
+	}
+
+    nd_debug_printf("sysctl(NET_RT_IFLIST): returned %d bytes.\n", length);
 }
 
 bool ndNetlink::ProcessEvent(void)
@@ -360,7 +410,7 @@ bool ndNetlink::ProcessEvent(void)
     struct rt_msghdr *rth = (struct rt_msghdr *)buffer;
     unsigned added_net = 0, removed_net = 0, added_addr = 0, removed_addr = 0;
 
-    while ((bytes = recv(nd, buffer, ND_NETLINK_BUFSIZ, 0)) > 0) {
+    while ((bytes = recv(nd, buffer, buffer_length, 0)) > 0) {
         nd_debug_printf("%s: %ld [%hu:0x%02hhx:0x%02hhx]\n",
             __PRETTY_FUNCTION__, bytes,
             rth->rtm_msglen, rth->rtm_version, rth->rtm_type);
