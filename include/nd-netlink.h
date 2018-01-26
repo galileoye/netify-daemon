@@ -113,12 +113,21 @@ protected:
     bool CopyNetlinkAddress(
         sa_family_t family, struct sockaddr_storage &dst, void *src);
 
+#ifdef _ND_USE_NETLINK_BSD
+    size_t SysctlExecute(int mode);
+    bool ProcessEvent(size_t length);
+#endif
+
 #ifndef _ND_USE_NETLINK_BSD
     bool ParseMessage(struct rtmsg *rtm, size_t offset,
         string &iface, ndNetlinkNetworkAddr &addr);
     bool ParseMessage(struct ifaddrmsg *addrm, size_t offset,
         string &iface, struct sockaddr_storage &addr);
 #else
+    bool ParseMessage(struct rt_msghdr *rth, size_t offset,
+        string &iface, ndNetlinkNetworkAddr &addr);
+    bool ParseMessage(struct ifa_msghdr *ifah, size_t offset,
+        string &iface, struct sockaddr_storage &addr);
 #endif
 
 #ifndef _ND_USE_NETLINK_BSD
