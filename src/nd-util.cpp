@@ -191,25 +191,27 @@ void ndpi_debug_printf(
 
 void nd_print_address(const struct sockaddr_storage *addr)
 {
-    int rc;
-    char _addr[NI_MAXHOST];
+    const char *rc = NULL;
+    char addrs[INET6_ADDRSTRLEN];
+    const struct sockaddr_in *sa4;
+    const struct sockaddr_in6 *sa6;
 
     switch (addr->ss_family) {
     case AF_INET:
-        rc = getnameinfo((const struct sockaddr *)addr, sizeof(struct sockaddr_in),
-            _addr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+        sa4 = (const sockaddr_in *)addr;
+        rc = inet_ntop(AF_INET, &sa4->sin_addr.s_addr, addrs, INET_ADDRSTRLEN);
         break;
     case AF_INET6:
-        rc = getnameinfo((const struct sockaddr *)addr, sizeof(struct sockaddr_in6),
-            _addr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+        sa6 = (const sockaddr_in6 *)addr;
+        rc = inet_ntop(AF_INET6, &sa6->sin6_addr.s6_addr, addrs, INET6_ADDRSTRLEN);
         break;
     default:
-        nd_printf("(unsupported AF:%x)", addr->ss_family);
+        nd_printf("(invalid AF:%02hu)", addr->ss_family);
         return;
     }
 
-    if (rc == 0)
-        nd_printf(_addr);
+    if (rc != NULL)
+        nd_printf(addrs);
     else
         nd_printf("???");
 }
@@ -276,6 +278,43 @@ void nd_print_number(ostringstream &os, uint64_t value, bool units_binary)
             os << fvalue << setw(4) << " ";
         }
     }
+}
+
+void nd_netmask_prefix(sa_family_t family, const struct sockaddr *sa, uint8_t *prefix)
+{
+    uint8_t n, *p;
+    int i, j, length;
+    struct sockaddr_in *sa4;
+    struct sockaddr_in6 *sa6;
+
+    switch (family) {
+    case AF_INET:
+        length = 4;
+        sa4 = (struct sockaddr_in *)sa;
+        p = (uint8_t *)&sa4->sin_addr.s_addr;
+        break;
+    case AF_INET6:
+        length = 16;
+        sa6 = (struct sockaddr_in6 *)sa;
+        p = (uint8_t *)&sa6->sin6_addr;
+        break;
+    default:
+        *prefix = 0;
+        nd_debug_printf("%s: Invalid AF: %d\n",
+            __PRETTY_FUNCTION__, sa->sa_family);
+        return;
+    }
+
+    for (n = i = 0; i < length; i++, n += 8)
+        if (p[i] != 0xff) break;
+
+    if (i != length && p[i]) {
+        for (j = 7; j > 0; j--, n++) {
+            if ((p[i] & (1 << j)) == 0) break;
+        }
+    }
+
+    *prefix = n;
 }
 
 int nd_sha1_file(const string &filename, uint8_t *digest)

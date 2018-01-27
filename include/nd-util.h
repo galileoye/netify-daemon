@@ -46,6 +46,8 @@ void nd_print_binary(uint32_t byte);
 
 void nd_print_number(ostringstream &os, uint64_t value, bool units_binary = true);
 
+void nd_netmask_prefix(sa_family_t family, const struct sockaddr *sa, uint8_t *prefix);
+
 int nd_sha1_file(const string &filename, uint8_t *digest);
 
 void nd_sha1_to_string(const uint8_t *digest_bin, string &digest_str);

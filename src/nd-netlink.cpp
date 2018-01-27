@@ -44,10 +44,8 @@
 #include <net/if_dl.h>
 #include <net/route.h>
 
-#define _ND_NETLINK_ALIGN(a) \
-    ((a) > 0 ? (1 + (((a) - 1) | (sizeof(unsigned long) - 1))) : sizeof(unsigned long))
 #define _ND_NETLINK_NEXTSA(s) \
-    ((struct sockaddr *)((uint8_t *)(s) + _ND_NETLINK_ALIGN((s)->sa_len)))
+    ((struct sockaddr *)((uint8_t *)(s) + SA_SIZE(s)))
 #endif
 
 using namespace std;
@@ -419,9 +417,9 @@ bool ndNetlink::ProcessEvent(size_t length)
     for (next = buffer; next < limit; next += rth->rtm_msglen) {
         rth = (struct rt_msghdr *)next;
 
-        nd_debug_printf("%s: %ld [%hu:0x%02hhx:0x%02hhx]\n",
-            __PRETTY_FUNCTION__, length,
-            rth->rtm_msglen, rth->rtm_version, rth->rtm_type);
+        //nd_debug_printf("%s: %ld [%hu:0x%02hhx:0x%02hhx]\n",
+        //    __PRETTY_FUNCTION__, length,
+        //    rth->rtm_msglen, rth->rtm_version, rth->rtm_type);
 
         switch (rth->rtm_type) {
         case RTM_ADD:
@@ -791,25 +789,24 @@ bool ndNetlink::ParseMessage(struct rt_msghdr *rth, size_t offset,
     if (ifaces.find(ifname) == ifaces.end()) return false;
 
     iface.assign(ifname);
-
-    nd_debug_printf("%s: route address types: 0x%02x\n", ifname, rth->rtm_addrs);
-    if (rth->rtm_addrs & RTA_DST == 0) {
-        nd_debug_printf("%s: route: no destination address, skipping...\n", ifname);
-        return false;
-    }
-
     sa = (struct sockaddr *)(rth + 1);
-    CopyNetlinkAddress(sa->sa_family, addr.network, sa);
 
+    // RTA_DST
+    if ((rth->rtm_addrs & RTA_DST) == 0) return false;
+    sa_family_t family = sa->sa_family;
+    memset(&addr.network, 0, sizeof(struct sockaddr_storage));
+    memcpy(&addr.network, sa, sa->sa_len);
+    sa = _ND_NETLINK_NEXTSA(sa);
+
+    // RTA_GATEWAY
     if (rth->rtm_addrs & RTA_GATEWAY)
         sa = _ND_NETLINK_NEXTSA(sa);
 
-    if (rth->rtm_addrs & RTA_NETMASK == 0) {
-        nd_debug_printf("%s: route: no netmask address, skipping...\n", ifname);
-        return false;
+    // RTA_NETMASK
+    if (rth->rtm_addrs & RTA_NETMASK) {
+            if (sa->sa_len > 0)
+                nd_netmask_prefix(family, sa, &addr.length);
     }
-
-    addr.length = 24;
 
     return true;
 }
